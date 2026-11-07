@@ -1,0 +1,42 @@
+name: laravel-docker
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx.dockerfile
+    container_name: ld-nginx
+    restart: unless-stopped
+    depends_on:
+      - php
+    ports:
+      - "${APP_PORT}:80"
+    volumes:
+      - ../projects:/var/www/html
+    networks:
+      - laravel
+
+  php:
+    build:
+      context: .
+      dockerfile: php.dockerfile
+      args:
+        PHP_VERSION: ${PHP_VERSION}
+        NODE_MAJOR: ${NODE_MAJOR}
+    image: laravel-docker-php:${PHP_VERSION}
+    container_name: ld-php
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ../projects:/var/www/html
+      - composer-cache:/root/.composer/cache
+    networks:
+      - laravel
+
+
+volumes:
+  composer-cache:
+
+networks:
+  laravel:
+    name: laravel-docker

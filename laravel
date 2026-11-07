@@ -1,0 +1,71 @@
+#!/bin/bash
+# Uso: ./laravel {start|stop|restart|rebuild|status|logs|shell|new|run} [...]
+
+set -e
+
+base_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+conf_path="$base_path/docker"
+projects_path="$base_path/projects"
+
+if ! docker info > /dev/null 2>&1; then
+    echo "Docker no esta corriendo."
+    exit 1
+fi
+
+if [ ! -f "$conf_path/.env" ]; then
+    cp "$conf_path/.env.example" "$conf_path/.env"
+    echo "Creado docker/.env desde .env.example"
+fi
+
+# Carpeta actual -> ruta equivalente dentro del contenedor
+container_path="/var/www/html"
+case "$PWD" in
+    "$projects_path"*) container_path="/var/www/html${PWD#$projects_path}" ;;
+esac
+
+cd "$conf_path"
+dc() { docker compose "$@"; }
+port() { grep -E '^APP_PORT=' .env | cut -d= -f2; }
+
+case "$1" in
+    start)
+        dc up -d
+        echo "Proyectos: http://localhost/<carpeta>/public"
+        ;;
+    stop)
+        dc down
+        ;;
+    restart)
+        dc down
+        dc up -d
+        ;;
+    rebuild)
+        dc down
+        dc up -d --build
+        ;;
+    status)
+        dc ps
+        ;;
+    logs)
+        shift
+        dc logs -f "$@"
+        ;;
+    shell)
+        dc exec -w "$container_path" php bash
+        ;;
+    new)
+        # ./laravel new miapp  -> projects/miapp
+        [ -z "$2" ] && { echo "Uso: $0 new <nombre>"; exit 1; }
+        dc exec -w /var/www/html php composer create-project laravel/laravel "$2"
+        echo "Listo: http://localhost/$2/public"
+        ;;
+    run)
+        # ./laravel run composer install | ./laravel run php artisan migrate | ./laravel run npm run build
+        shift
+        dc exec -w "$container_path" php "$@"
+        ;;
+    *)
+        echo "Uso: $0 {start|stop|restart|rebuild|status|logs|shell|new|run}"
+        exit 1
+        ;;
+esac
